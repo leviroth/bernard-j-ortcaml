@@ -3,11 +3,11 @@ open! Import
 open Jsonaf.Export
 
 module Index_list (Param : sig
-  type t [@@deriving sexp_of]
+    type t [@@deriving sexp_of]
 
-  include Comparable with type t := t
-  include Stringable with type t := t
-end) =
+    include Comparable with type t := t
+    include Stringable with type t := t
+  end) =
 struct
   type t = Param.t option Queue.t [@@deriving sexp_of]
 
@@ -24,9 +24,9 @@ struct
   let jsonaf_of_t t =
     `Array
       (Queue.to_list t
-      |> List.map ~f:(function
-             | None -> `Null
-             | Some v -> `String (Param.to_string v)))
+       |> List.map ~f:(function
+         | None -> `Null
+         | Some v -> `String (Param.to_string v)))
   ;;
 
   let index t element =
@@ -77,15 +77,15 @@ module Note = struct
     let warning_index = Warnings.index warnings warning in
     `Object
       ((match context with
-       | None -> []
-       | Some context -> [ "l", `String (Context.to_string context) ])
-      @ [ "n", `String text
-        ; ( "t"
-          , [%jsonaf_of: int] (Time_ns.to_span_since_epoch time |> Time_ns.Span.to_int_sec)
-          )
-        ; "m", [%jsonaf_of: int] moderator_index
-        ; "w", [%jsonaf_of: int] warning_index
-        ])
+        | None -> []
+        | Some context -> [ "l", `String (Context.to_string context) ])
+       @ [ "n", `String text
+         ; ( "t"
+           , [%jsonaf_of: int]
+               (Time_ns.to_span_since_epoch time |> Time_ns.Span.to_int_sec) )
+         ; "m", [%jsonaf_of: int] moderator_index
+         ; "w", [%jsonaf_of: int] warning_index
+         ])
   ;;
 end
 
@@ -103,9 +103,9 @@ let decompress_blob blob =
     raise_s [%message "Error decompressing blob" (error : string)]
   | Ok s ->
     (match Jsonaf.parse s with
-    | Ok json -> json
-    | Error error ->
-      raise_s [%message "Error converting blob to string" (error : Error.t)])
+     | Ok json -> json
+     | Error error ->
+       raise_s [%message "Error converting blob to string" (error : Error.t)])
 ;;
 
 let t_of_jsonaf json =
@@ -129,11 +129,9 @@ let t_of_jsonaf json =
     let blob = decompress_blob (Jsonaf.member_exn "blob" json |> Jsonaf.string_exn) in
     Jsonaf.assoc_list_exn blob
     |> List.map ~f:(fun (username, json) ->
-           ( Username.of_string username
-           , Jsonaf.member_exn "ns" json
-             |> Jsonaf.list_exn
-             |> List.to_array
-             |> Deque.of_array ))
+      ( Username.of_string username
+      , Jsonaf.member_exn "ns" json |> Jsonaf.list_exn |> List.to_array |> Deque.of_array
+      ))
     |> Hashtbl.of_alist_exn (module Username)
   in
   { moderators; warnings; notes }
@@ -147,9 +145,8 @@ let jsonaf_of_t { moderators; warnings; notes } =
   let notes =
     `Object
       (Hashtbl.to_alist notes
-      |> List.map ~f:(fun (username, notes) ->
-             Username.to_string username, `Object [ "ns", `Array (Deque.to_list notes) ])
-      )
+       |> List.map ~f:(fun (username, notes) ->
+         Username.to_string username, `Object [ "ns", `Array (Deque.to_list notes) ]))
   in
   `Object
     [ "ver", [%jsonaf_of: int] 6

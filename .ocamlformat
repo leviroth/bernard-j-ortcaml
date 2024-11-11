@@ -1,2 +1,3 @@
+version = 0.26.2
 profile = janestreet
 ocp-indent-compat = true

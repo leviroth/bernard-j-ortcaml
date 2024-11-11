@@ -49,18 +49,18 @@ type t =
       { level : string
       ; text : string
       }
-      (** Add a {{:https://www.reddit.com/r/toolbox/wiki/docs/usernotes}Reddit
-          Toolbox usernote} to the target author with the corresponding level
-          and text. *)
+  (** Add a {{:https://www.reddit.com/r/toolbox/wiki/docs/usernotes} Reddit
+      Toolbox usernote} to the target author with the corresponding level
+      and text. *)
   | Ban of
       { message : string option (** Message displayed to the user *)
       ; reason : string (** Reason available to moderators *)
       ; duration : Endpoint.Parameters.Relationship_spec.Duration.t
       } (** Ban the target author. *)
   | Cleanup_thread
-      (** Remove all reported comments in a thread.
+  (** Remove all reported comments in a thread.
 
-          Only takes effect after all rules have had a chance to handle the comments. *)
+      Only takes effect after all rules have had a chance to handle the comments. *)
   | Lock (** Lock the target. *)
   | Nuke (** Recursively remove the target and its replies. *)
   | Modmail of
@@ -68,33 +68,36 @@ type t =
       ; body : string
       } (** Send a modmail to the target author. *)
   | Notify of { text : string }
-      (** Reply to the target and distinguish the resulting comment. *)
+  (** Reply to the target and distinguish the resulting comment. *)
   | Remove (** Remove the target. *)
   | Set_flair of { template : Uuid.t } (** Set target link's flair. *)
   | Watch_via_automod of
       { key : Automod_key.t
       ; placeholder : string
       }
-      (** Add the [key] of the target to the subreddit's AutoMod config.
+  (** Add the [key] of the target to the subreddit's AutoMod config.
 
-          This action finds [placeholder] in the AutoMod config and adds the key
-          after it, expecting that the placeholder is found in a YAML list.
+      This action finds [placeholder] in the AutoMod config and adds the key
+      after it, expecting that the placeholder is found in a YAML list.
 
-          For example, if our key is "spez" and our placeholder is "do!not!remove",
-          this action assumes a list like the following exists in the AutoMod config:
+      For example, if our key is "spez" and our placeholder is "do!not!remove",
+      this action assumes a list like the following exists in the AutoMod config:
 
-          {[ [do!not!remove, ketralnis, kn0thing] ]}
+      {[
+        [do!not!remove, ketralnis, kn0thing]
+      ]}
 
-          Afterwards, the list will look like this:
+      Afterwards, the list will look like this:
 
-          {[ [do!not!remove, spez, ketralnis, kn0thing] ]}
+      {[
+        [do!not!remove, spez, ketralnis, kn0thing]
+      ]}
 
-          The change is a simple textual replacement and does not try to parse
-          markdown.
+      The change is a simple textual replacement and does not try to parse
+      markdown.
 
-          We recommend that placeholders contain a character that is legal
-          neither in usernames nor in domains, such as '!'.
-      *)
+      We recommend that placeholders contain a character that is legal
+      neither in usernames nor in domains, such as '!'. *)
 [@@deriving sexp, compare, equal]
 
 val validate : t Validate.check

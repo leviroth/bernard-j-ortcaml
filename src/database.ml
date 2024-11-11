@@ -135,17 +135,15 @@ let already_acted =
   in
   fun t ~target ~restrict_to_moderator ->
     with_t_exn t ~f:(fun (module Connection) ->
-        let open Deferred.Result.Let_syntax in
-        let%bind action_count =
-          match restrict_to_moderator with
-          | None ->
-            Connection.find request_not_filtered_by_moderator (target_fullname target)
-          | Some moderator ->
-            Connection.find
-              request_filtered_by_moderator
-              (target_fullname target, moderator)
-        in
-        return (action_count > 0))
+      let open Deferred.Result.Let_syntax in
+      let%bind action_count =
+        match restrict_to_moderator with
+        | None ->
+          Connection.find request_not_filtered_by_moderator (target_fullname target)
+        | Some moderator ->
+          Connection.find request_filtered_by_moderator (target_fullname target, moderator)
+      in
+      return (action_count > 0))
 ;;
 
 let record_contents =
@@ -160,41 +158,41 @@ let record_contents =
   in
   fun t ~target ->
     with_t_exn t ~f:(fun ((module Connection) as connection) ->
-        let open Deferred.Result.Let_syntax in
-        let%bind author_id =
-          match Action.Target.author target with
-          | None -> return None
-          | Some username ->
-            let%bind id = get_or_create_user_id connection ~username in
-            return (Some id)
-        in
-        let%bind subreddit_id =
-          let subreddit =
-            match target with
-            | Comment comment -> Thing.Comment.subreddit comment
-            | Link link -> Thing.Link.subreddit link
-          in
-          Connection.find select_contents_request subreddit
-        in
-        let time =
+      let open Deferred.Result.Let_syntax in
+      let%bind author_id =
+        match Action.Target.author target with
+        | None -> return None
+        | Some username ->
+          let%bind id = get_or_create_user_id connection ~username in
+          return (Some id)
+      in
+      let%bind subreddit_id =
+        let subreddit =
           match target with
-          | Comment comment -> Thing.Comment.creation_time comment
-          | Link link -> Thing.Link.creation_time link
+          | Comment comment -> Thing.Comment.subreddit comment
+          | Link link -> Thing.Link.subreddit link
         in
-        match%bind.Deferred
-          Connection.exec
-            insert_contents_request
-            ((target_fullname target, author_id, subreddit_id, time), target)
-        with
-        | Ok () -> return `Ok
-        | Error error ->
-          let raise_error () = raise (Caqti_error.Exn error) in
-          (match error with
-          | (`Request_failed _ | `Response_failed _) as error ->
-            (match Caqti_error.cause error with
+        Connection.find select_contents_request subreddit
+      in
+      let time =
+        match target with
+        | Comment comment -> Thing.Comment.creation_time comment
+        | Link link -> Thing.Link.creation_time link
+      in
+      match%bind.Deferred
+        Connection.exec
+          insert_contents_request
+          ((target_fullname target, author_id, subreddit_id, time), target)
+      with
+      | Ok () -> return `Ok
+      | Error error ->
+        let raise_error () = raise (Caqti_error.Exn error) in
+        (match error with
+         | (`Request_failed _ | `Response_failed _) as error ->
+           (match Caqti_error.cause error with
             | `Unique_violation -> return `Already_recorded
             | _ -> raise_error ())
-          | _ -> raise_error ()))
+         | _ -> raise_error ()))
 ;;
 
 let log_rule_application =
@@ -206,19 +204,19 @@ let log_rule_application =
   in
   fun t ~target ~action_summary ~author ~moderator ~subreddit ~time ->
     with_t_exn t ~f:(fun ((module Connection) as connection) ->
-        let open Deferred.Result.Let_syntax in
-        let%bind author_id =
-          match author with
-          | None -> return None
-          | Some username ->
-            let%bind id = get_or_create_user_id connection ~username in
-            return (Some id)
-        in
-        let%bind moderator_id = get_or_create_user_id connection ~username:moderator in
-        let target_fullname = target_fullname target in
-        Connection.exec
-          request
-          ((target_fullname, action_summary, author_id, moderator_id), (time, subreddit)))
+      let open Deferred.Result.Let_syntax in
+      let%bind author_id =
+        match author with
+        | None -> return None
+        | Some username ->
+          let%bind id = get_or_create_user_id connection ~username in
+          return (Some id)
+      in
+      let%bind moderator_id = get_or_create_user_id connection ~username:moderator in
+      let target_fullname = target_fullname target in
+      Connection.exec
+        request
+        ((target_fullname, action_summary, author_id, moderator_id), (time, subreddit)))
 ;;
 
 let update_subscriber_counts =
@@ -232,16 +230,16 @@ let update_subscriber_counts =
   in
   fun t ~subreddits ->
     with_t_exn t ~f:(fun (module Connection) ->
-        Deferred.List.map subreddits ~how:`Sequential ~f:(fun subreddit ->
-            let open Deferred.Result.Let_syntax in
-            let subreddit_id = Thing.Subreddit.id subreddit in
-            let display_name = Thing.Subreddit.name subreddit in
-            let%bind () =
-              Connection.exec insert_subreddit_request (subreddit_id, display_name)
-            in
-            let subscribers = Thing.Subreddit.subscribers subreddit in
-            Connection.exec update_subscribers_request (subscribers, subreddit_id))
-        >>| Result.all_unit)
+      Deferred.List.map subreddits ~how:`Sequential ~f:(fun subreddit ->
+        let open Deferred.Result.Let_syntax in
+        let subreddit_id = Thing.Subreddit.id subreddit in
+        let display_name = Thing.Subreddit.name subreddit in
+        let%bind () =
+          Connection.exec insert_subreddit_request (subreddit_id, display_name)
+        in
+        let subscribers = Thing.Subreddit.subscribers subreddit in
+        Connection.exec update_subscribers_request (subscribers, subreddit_id))
+      >>| Result.all_unit)
 ;;
 
 let update_moderator_table =
@@ -256,10 +254,10 @@ let update_moderator_table =
   in
   fun t ~moderators ~subreddit ->
     with_t_exn t ~f:(fun ((module Connection) as connection) ->
-        let%bind.Deferred.Result () = Connection.exec delete_request subreddit in
-        Deferred.List.map moderators ~how:`Sequential ~f:(fun moderator ->
-            let open Deferred.Result.Let_syntax in
-            let%bind user_id = get_or_create_user_id connection ~username:moderator in
-            Connection.exec insert_request (subreddit, user_id))
-        >>| Result.all_unit)
+      let%bind.Deferred.Result () = Connection.exec delete_request subreddit in
+      Deferred.List.map moderators ~how:`Sequential ~f:(fun moderator ->
+        let open Deferred.Result.Let_syntax in
+        let%bind user_id = get_or_create_user_id connection ~username:moderator in
+        Connection.exec insert_request (subreddit, user_id))
+      >>| Result.all_unit)
 ;;

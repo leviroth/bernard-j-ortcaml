@@ -4,28 +4,28 @@ open Reddit_api_async
 
 let retry_or_fail retry_manager here endpoint =
   Deferred.repeat_until_finished () (fun () ->
-      match%bind Retry_manager.call retry_manager endpoint with
-      | Ok v -> return (`Finished v)
-      | Error
-          (Endpoint_error
-            (Json_response_errors
-              [ { error = "RATELIMIT"
-                ; fields = [ "ratelimit" ]
-                ; details =
-                    "Looks like you've been doing that a lot. Take a break for 5 seconds \
-                     before trying again."
-                ; error_type = _
-                }
-              ])) ->
-        let%bind () = Clock_ns.after (Time_ns.Span.of_int_sec 6) in
-        return (`Repeat ())
-      | Error error ->
-        raise_s
-          [%message
-            "Reddit returned error"
-              (here : Source_code_position.t)
-              ~request:(endpoint.request : Endpoint.Request.t)
-              (error : Retry_manager.Permanent_error.t)])
+    match%bind Retry_manager.call retry_manager endpoint with
+    | Ok v -> return (`Finished v)
+    | Error
+        (Endpoint_error
+          (Json_response_errors
+            [ { error = "RATELIMIT"
+              ; fields = [ "ratelimit" ]
+              ; details =
+                  "Looks like you've been doing that a lot. Take a break for 5 seconds \
+                   before trying again."
+              ; error_type = _
+              }
+            ])) ->
+      let%bind () = Clock_ns.after (Time_ns.Span.of_int_sec 6) in
+      return (`Repeat ())
+    | Error error ->
+      raise_s
+        [%message
+          "Reddit returned error"
+            (here : Source_code_position.t)
+            ~request:(endpoint.request : Endpoint.Request.t)
+            (error : Retry_manager.Permanent_error.t)])
 ;;
 
 let update_wiki_page ?reason page ~retry_manager ~f =
@@ -65,7 +65,7 @@ let add_user_notes notes ~retry_manager ~subreddit =
       | Ok json ->
         let page = [%of_jsonaf: Usernote_page.t] json in
         List.iter notes ~f:(fun (username, spec) ->
-            Usernote_page.add_note page ~username ~spec);
+          Usernote_page.add_note page ~username ~spec);
         [%jsonaf_of: Usernote_page.t] page |> Jsonaf.to_string
     in
     let page : Wiki_page.Id.t = { subreddit = Some subreddit; page = "usernotes" } in
@@ -79,7 +79,7 @@ let unescape_wiki_contents =
   in
   fun html_string ->
     List.fold unsafe_characters ~init:html_string ~f:(fun string (pattern, replacement) ->
-        String.Search_pattern.replace_all pattern ~in_:string ~with_:replacement)
+      String.Search_pattern.replace_all pattern ~in_:string ~with_:replacement)
 ;;
 
 let watch_via_automod retry_manager ~subreddit ~placeholder ~entries =

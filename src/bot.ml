@@ -29,12 +29,12 @@ let get_full_listing here ~retry_manager ~get_listing =
     Utils.retry_or_fail retry_manager here (get_listing ?pagination ~limit:100 ())
   in
   Deferred.repeat_until_finished (None, []) (fun (after, listings) ->
-      let%bind listing = get_one after in
-      let listings = listing :: listings in
-      match Listing.after listing with
-      | None ->
-        return (`Finished (List.rev listings |> List.concat_map ~f:Listing.children))
-      | Some after -> return (`Repeat (Some (Listing.Pagination.After after), listings)))
+    let%bind listing = get_one after in
+    let listings = listing :: listings in
+    match Listing.after listing with
+    | None ->
+      return (`Finished (List.rev listings |> List.concat_map ~f:Listing.children))
+    | Some after -> return (`Repeat (Some (Listing.Pagination.After after), listings)))
 ;;
 
 let target_of_thing thing : Action.Target.t =
@@ -63,14 +63,13 @@ module Per_subreddit = struct
   ;;
 
   let handle_target
-      { rules; action_buffers; retry_manager; subreddit; subreddit_id; database }
-      ~target
+    { rules; action_buffers; retry_manager; subreddit; subreddit_id; database }
+    ~target
     =
     match
       List.find_map rules ~f:(fun rule ->
-          Rule.find_matching_report rule ~target
-          |> Option.map ~f:(fun ({ moderator; _ } : Moderator_report.t) ->
-                 rule, moderator))
+        Rule.find_matching_report rule ~target
+        |> Option.map ~f:(fun ({ moderator; _ } : Moderator_report.t) -> rule, moderator))
     with
     | None -> return `Did_not_act
     | Some (_rule, None) ->
@@ -80,51 +79,51 @@ module Per_subreddit = struct
       (match%bind
          Database.already_acted database ~target ~restrict_to_moderator:(Some moderator)
        with
-      | true -> return `Did_not_act
-      | false ->
-        Log.Global.info_s
-          [%sexp
-            { subreddit : Subreddit_name.t
-            ; action_summary : string = rule.info
-            ; author : Username.t option = Action.Target.author target
-            ; moderator : Username.t
-            ; target : Thing.Fullname.t = Action.Target.fullname target
-            }];
-        let time = Time_ns.now () in
-        let%bind () =
-          Database.log_rule_application
-            database
-            ~target
-            ~action_summary:rule.info
-            ~author:(Action.Target.author target)
-            ~subreddit:subreddit_id
-            ~moderator
-            ~time
-        in
-        let%bind (`Ok | `Already_recorded) = Database.record_contents database ~target in
-        let%bind () =
-          match Rule.will_remove rule with
-          | true -> return ()
-          | false ->
-            Utils.retry_or_fail
-              retry_manager
-              [%here]
-              (Endpoint.approve ~id:(Action.Target.fullname target))
-        in
-        let%bind () =
-          Deferred.List.iter
-            rule.actions
-            ~how:`Sequential
-            ~f:
-              (Action.act
-                 ~target
-                 ~retry_manager
-                 ~subreddit
-                 ~moderator
-                 ~time
-                 ~action_buffers)
-        in
-        return `Acted)
+       | true -> return `Did_not_act
+       | false ->
+         Log.Global.info_s
+           [%sexp
+             { subreddit : Subreddit_name.t
+             ; action_summary : string = rule.info
+             ; author : Username.t option = Action.Target.author target
+             ; moderator : Username.t
+             ; target : Thing.Fullname.t = Action.Target.fullname target
+             }];
+         let time = Time_ns.now () in
+         let%bind () =
+           Database.log_rule_application
+             database
+             ~target
+             ~action_summary:rule.info
+             ~author:(Action.Target.author target)
+             ~subreddit:subreddit_id
+             ~moderator
+             ~time
+         in
+         let%bind (`Ok | `Already_recorded) = Database.record_contents database ~target in
+         let%bind () =
+           match Rule.will_remove rule with
+           | true -> return ()
+           | false ->
+             Utils.retry_or_fail
+               retry_manager
+               [%here]
+               (Endpoint.approve ~id:(Action.Target.fullname target))
+         in
+         let%bind () =
+           Deferred.List.iter
+             rule.actions
+             ~how:`Sequential
+             ~f:
+               (Action.act
+                  ~target
+                  ~retry_manager
+                  ~subreddit
+                  ~moderator
+                  ~time
+                  ~action_buffers)
+         in
+         return `Acted)
   ;;
 
   let run_once ({ action_buffers; subreddit; retry_manager; _ } as t) =
@@ -132,32 +131,32 @@ module Per_subreddit = struct
     let targets_acted_on = Thing.Fullname.Hash_set.create () in
     let%bind () =
       Deferred.List.iter all_targets ~how:`Sequential ~f:(fun target ->
-          let labels_for_subreddit_and_target_kind =
-            [ Subreddit_name.to_string subreddit
-            ; Action.Target.kind target |> Action.Target.Kind.sexp_of_t |> Sexp.to_string
-            ]
-          in
-          let reports_seen_metric =
+        let labels_for_subreddit_and_target_kind =
+          [ Subreddit_name.to_string subreddit
+          ; Action.Target.kind target |> Action.Target.Kind.sexp_of_t |> Sexp.to_string
+          ]
+        in
+        let reports_seen_metric =
+          Prometheus.Counter.labels
+            Metrics.reports_seen
+            labels_for_subreddit_and_target_kind
+        in
+        Prometheus.Counter.inc_one reports_seen_metric;
+        match%bind handle_target t ~target with
+        | `Did_not_act -> return ()
+        | `Acted ->
+          let actioned_metric =
             Prometheus.Counter.labels
-              Metrics.reports_seen
+              Metrics.targets_actioned
               labels_for_subreddit_and_target_kind
           in
-          Prometheus.Counter.inc_one reports_seen_metric;
-          match%bind handle_target t ~target with
-          | `Did_not_act -> return ()
-          | `Acted ->
-            let actioned_metric =
-              Prometheus.Counter.labels
-                Metrics.targets_actioned
-                labels_for_subreddit_and_target_kind
-            in
-            Prometheus.Counter.inc_one actioned_metric;
-            Hash_set.add targets_acted_on (Action.Target.fullname target);
-            return ())
+          Prometheus.Counter.inc_one actioned_metric;
+          Hash_set.add targets_acted_on (Action.Target.fullname target);
+          return ())
     in
     let remaining_reports =
       List.filter all_targets ~f:(fun target ->
-          not (Hash_set.mem targets_acted_on (Action.Target.fullname target)))
+        not (Hash_set.mem targets_acted_on (Action.Target.fullname target)))
     in
     Action.Action_buffers.commit_all
       action_buffers
@@ -178,22 +177,19 @@ let create ~subreddit_configs ~connection ~database =
   let%bind subreddits =
     Map.to_alist subreddit_configs
     |> Deferred.List.map ~how:`Sequential ~f:(fun (subreddit, rules) ->
-           let%bind subreddit_id =
-             Utils.retry_or_fail
-               retry_manager
-               [%here]
-               (Endpoint.about_subreddit ~subreddit)
-             >>| Thing.Subreddit.id
-           in
-           return
-             ({ rules
-              ; action_buffers = Action.Action_buffers.create ()
-              ; retry_manager
-              ; subreddit
-              ; subreddit_id
-              ; database
-              }
-               : Per_subreddit.t))
+      let%bind subreddit_id =
+        Utils.retry_or_fail retry_manager [%here] (Endpoint.about_subreddit ~subreddit)
+        >>| Thing.Subreddit.id
+      in
+      return
+        ({ rules
+         ; action_buffers = Action.Action_buffers.create ()
+         ; retry_manager
+         ; subreddit
+         ; subreddit_id
+         ; database
+         }
+         : Per_subreddit.t))
   in
   return { subreddits; retry_manager; database }
 ;;
@@ -206,32 +202,31 @@ let refresh_subreddit_tables { subreddits; retry_manager; database } =
       [%here]
       (Endpoint.info (Id (List.map subreddit_ids ~f:(fun v -> `Subreddit v))))
     >>| List.map ~f:(function
-            | `Subreddit v -> v
-            | (`Link _ | `Comment _) as thing ->
-              raise_s
-                [%message "Unexpected thing in info response" (thing : Thing.Poly.t)])
+      | `Subreddit v -> v
+      | (`Link _ | `Comment _) as thing ->
+        raise_s [%message "Unexpected thing in info response" (thing : Thing.Poly.t)])
   in
   let%bind () = Database.update_subscriber_counts database ~subreddits in
   Deferred.List.iter subreddits ~how:`Sequential ~f:(fun subreddit ->
-      let subreddit_name = Thing.Subreddit.name subreddit in
-      let subreddit_id = Thing.Subreddit.id subreddit in
-      let%bind moderators =
-        get_full_listing
-          [%here]
-          ~retry_manager
-          ~get_listing:(fun ?pagination ~limit connection ->
-            Endpoint.moderators ?pagination ~limit connection ~subreddit:subreddit_name)
-        >>| List.map ~f:Relationship.Moderator.username
-      in
-      Database.update_moderator_table database ~moderators ~subreddit:subreddit_id)
+    let subreddit_name = Thing.Subreddit.name subreddit in
+    let subreddit_id = Thing.Subreddit.id subreddit in
+    let%bind moderators =
+      get_full_listing
+        [%here]
+        ~retry_manager
+        ~get_listing:(fun ?pagination ~limit connection ->
+          Endpoint.moderators ?pagination ~limit connection ~subreddit:subreddit_name)
+      >>| List.map ~f:Relationship.Moderator.username
+    in
+    Database.update_moderator_table database ~moderators ~subreddit:subreddit_id)
 ;;
 
 let run_forever t =
   let stop =
     Deferred.create (fun ivar ->
-        Signal.handle Signal.terminating ~f:(fun signal ->
-            Log.Global.info_s [%message "Stopping on signal" (signal : Signal.t)];
-            Ivar.fill_if_empty ivar ()))
+      Signal.handle Signal.terminating ~f:(fun signal ->
+        Log.Global.info_s [%message "Stopping on signal" (signal : Signal.t)];
+        Ivar.fill_if_empty ivar ()))
   in
   let repeat_or_exit_early repeat_delay =
     choose
@@ -241,18 +236,18 @@ let run_forever t =
   in
   let run_until_stop ~repeat_delay ~description ~f =
     Deferred.repeat_until_finished () (fun () ->
-        match%bind Monitor.try_with_or_error f with
-        | Ok () -> repeat_or_exit_early repeat_delay
-        | Error error ->
-          Prometheus.Counter.inc_one Metrics.unhandled_errors;
-          let retry_delay = Time_ns.Span.minute in
-          Log.Global.error_s
-            [%message
-              "Unhandled error. Repeating after delay."
-                (description : string)
-                (retry_delay : Time_ns.Span.t)
-                (error : Error.t)];
-          repeat_or_exit_early retry_delay)
+      match%bind Monitor.try_with_or_error f with
+      | Ok () -> repeat_or_exit_early repeat_delay
+      | Error error ->
+        Prometheus.Counter.inc_one Metrics.unhandled_errors;
+        let retry_delay = Time_ns.Span.minute in
+        Log.Global.error_s
+          [%message
+            "Unhandled error. Repeating after delay."
+              (description : string)
+              (retry_delay : Time_ns.Span.t)
+              (error : Error.t)];
+        repeat_or_exit_early retry_delay)
   in
   let%bind () = refresh_subreddit_tables t in
   Deferred.all_unit
@@ -297,13 +292,13 @@ let per_subreddit_param =
   let%bind files = Sys.ls_dir config_path in
   let rules_unvalidated =
     List.filter_map files ~f:(fun filename ->
-        match String.chop_suffix filename ~suffix:".sexp" with
-        | None -> None
-        | Some subreddit_name ->
-          let absolute_path = Filename.concat config_path filename in
-          Some
-            ( Subreddit_name.of_string subreddit_name
-            , Sexp.load_sexps_conv_exn absolute_path [%of_sexp: Rule.t] ))
+      match String.chop_suffix filename ~suffix:".sexp" with
+      | None -> None
+      | Some subreddit_name ->
+        let absolute_path = Filename.concat config_path filename in
+        Some
+          ( Subreddit_name.of_string subreddit_name
+          , Sexp.load_sexps_conv_exn absolute_path [%of_sexp: Rule.t] ))
     |> Subreddit_name.Map.of_alist_exn
   in
   return (Validate.valid_or_error validate_per_subreddit_configs rules_unvalidated)
@@ -380,9 +375,9 @@ let required_scopes_command =
          Set.of_list
            (module Scope)
            (let open List.Let_syntax in
-           let%bind rule = List.concat (Map.data subreddit_configs) in
-           let%bind action = rule.actions in
-           Action.required_scopes action)
+            let%bind rule = List.concat (Map.data subreddit_configs) in
+            let%bind action = rule.actions in
+            Action.required_scopes action)
        in
        let all = Set.union always_required for_rules in
        printf "%s\n" (Scope.request_parameter all);

@@ -18,18 +18,18 @@ module Trigger = struct
       (Fields.to_list
          ~commands:
            (v (fun commands ->
-                Validate.of_list
-                  [ nonempty commands
-                  ; Validate.list_indexed
-                      (fun command ->
-                        Validate.name
-                          "length"
-                          (Int.validate_bound
-                             (String.length command)
-                             ~min:(Incl 1)
-                             ~max:(Incl 100)))
-                      (Set.to_list commands)
-                  ]))
+              Validate.of_list
+                [ nonempty commands
+                ; Validate.list_indexed
+                    (fun command ->
+                      Validate.name
+                        "length"
+                        (Int.validate_bound
+                           (String.length command)
+                           ~min:(Incl 1)
+                           ~max:(Incl 100)))
+                    (Set.to_list commands)
+                ]))
          ~kinds:(v nonempty))
   ;;
 end

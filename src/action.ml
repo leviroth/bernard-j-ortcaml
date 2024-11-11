@@ -85,7 +85,7 @@ module Automod_action_buffers = struct
 
   let commit_all (t : t) ~retry_manager ~subreddit =
     Hashtbl.fold t ~init:Deferred.unit ~f:(fun ~key:placeholder ~data:buffer _ ->
-        commit_one buffer ~retry_manager ~subreddit ~placeholder)
+      commit_one buffer ~retry_manager ~subreddit ~placeholder)
   ;;
 end
 
@@ -169,8 +169,8 @@ let nuke (target : Target.t) ~retry_manager =
   in
   let pipe = Iter_comments.iter_comments retry_manager ~comment_response in
   Pipe.iter pipe ~f:(fun comment ->
-      let id = `Comment (Thing.Comment.id comment) in
-      Utils.retry_or_fail retry_manager [%here] (Endpoint.remove ~id ~spam:false))
+    let id = `Comment (Thing.Comment.id comment) in
+    Utils.retry_or_fail retry_manager [%here] (Endpoint.remove ~id ~spam:false))
 ;;
 
 let modmail (target : Target.t) ~retry_manager ~subject ~body ~subreddit =
@@ -243,10 +243,10 @@ module Automod_key = struct
 end
 
 let enqueue_automod_action
-    (target : Target.t)
-    ~(key : Automod_key.t)
-    ~placeholder
-    ~buffers
+  (target : Target.t)
+  ~(key : Automod_key.t)
+  ~placeholder
+  ~buffers
   =
   let string_to_add =
     match key with
@@ -262,16 +262,16 @@ let enqueue_automod_action
       Some domain
     | Author ->
       (match Target.author target with
-      | Some author -> Some (Username.to_string author)
-      | None ->
-        Log.Global.info_s
-          [%message
-            "Skipping Watch_via_automod action due to deleted author"
-              ~target:(Target.fullname target : Thing.Fullname.t)];
-        None)
+       | Some author -> Some (Username.to_string author)
+       | None ->
+         Log.Global.info_s
+           [%message
+             "Skipping Watch_via_automod action due to deleted author"
+               ~target:(Target.fullname target : Thing.Fullname.t)];
+         None)
   in
   Option.iter string_to_add ~f:(fun value ->
-      Automod_action_buffers.add buffers ~placeholder ~value)
+    Automod_action_buffers.add buffers ~placeholder ~value)
 ;;
 
 module Uuid = struct
@@ -327,12 +327,12 @@ module Thread_cleanup_action_buffers = struct
   let commit t ~retry_manager ~subreddit:_ ~(remaining_reports : Target.t list) =
     let%bind () =
       Deferred.List.iter remaining_reports ~how:`Sequential ~f:(fun target ->
-          match target with
-          | Link _ -> return ()
-          | Comment comment ->
-            (match Hash_set.mem t (Thing.Comment.link comment) with
-            | false -> return ()
-            | true -> remove target ~retry_manager))
+        match target with
+        | Link _ -> return ()
+        | Comment comment ->
+          (match Hash_set.mem t (Thing.Comment.link comment) with
+           | false -> return ()
+           | true -> remove target ~retry_manager))
     in
     Hash_set.clear t;
     return ()
@@ -355,10 +355,10 @@ module Action_buffers = struct
   ;;
 
   let commit_all
-      { automod; thread_cleanup; usernote }
-      ~retry_manager
-      ~subreddit
-      ~remaining_reports
+    { automod; thread_cleanup; usernote }
+    ~retry_manager
+    ~subreddit
+    ~remaining_reports
     =
     Deferred.all_unit
       [ Automod_action_buffers.commit_all automod ~retry_manager ~subreddit
@@ -373,39 +373,41 @@ module Action_buffers = struct
 end
 
 let act
-    t
-    ~target
-    ~retry_manager
-    ~subreddit
-    ~moderator
-    ~time
-    ~(action_buffers : Action_buffers.t)
+  t
+  ~target
+  ~retry_manager
+  ~subreddit
+  ~moderator
+  ~time
+  ~(action_buffers : Action_buffers.t)
   =
   match t with
   | Add_usernote { level; text } ->
     let user = Target.author target in
     (match user with
-    | None -> return ()
-    | Some user ->
-      let buffers = action_buffers.usernote in
-      Usernote_action_buffers.add
-        buffers
-        ~user
-        ~note:
-          { text
-          ; warning = Some level
-          ; moderator
-          ; time
-          ; context = Some (Target.usernote_context target)
-          };
-      return ())
+     | None -> return ()
+     | Some user ->
+       let buffers = action_buffers.usernote in
+       Usernote_action_buffers.add
+         buffers
+         ~user
+         ~note:
+           { text
+           ; warning = Some level
+           ; moderator
+           ; time
+           ; context = Some (Target.usernote_context target)
+           };
+       return ())
   | Ban { message; reason; duration } ->
     ban target ~retry_manager ~subreddit ~message ~reason ~duration
   | Cleanup_thread ->
     (match target with
-    | Comment _ -> ()
-    | Link link ->
-      Thread_cleanup_action_buffers.add action_buffers.thread_cleanup (Thing.Link.id link));
+     | Comment _ -> ()
+     | Link link ->
+       Thread_cleanup_action_buffers.add
+         action_buffers.thread_cleanup
+         (Thing.Link.id link));
     return ()
   | Lock -> lock (Target.fullname target) ~retry_manager
   | Nuke -> nuke target ~retry_manager
@@ -414,8 +416,8 @@ let act
   | Remove -> remove target ~retry_manager
   | Set_flair { template } ->
     (match target with
-    | Comment _ -> return ()
-    | Link link -> set_flair (Thing.Link.id link) ~retry_manager ~template ~subreddit)
+     | Comment _ -> return ()
+     | Link link -> set_flair (Thing.Link.id link) ~retry_manager ~template ~subreddit)
   | Watch_via_automod { key; placeholder } ->
     let buffers = action_buffers.automod in
     enqueue_automod_action target ~key ~placeholder ~buffers;
@@ -456,8 +458,8 @@ let validate =
          ; Validate.name
              "duration"
              (match duration with
-             | Permanent -> Validate.pass
-             | Days n -> Int.validate_bound ~min:(Incl 1) ~max:(Incl 999) n)
+              | Permanent -> Validate.pass
+              | Days n -> Int.validate_bound ~min:(Incl 1) ~max:(Incl 999) n)
          ])
   | Modmail { subject; body = _ } ->
     Validate.name "Modmail" (validate_max_length "subject" 100 subject)
@@ -475,11 +477,11 @@ let required_scopes t =
   List.map
     ~f:Scope.of_string
     (match t with
-    | Add_usernote _ | Watch_via_automod _ -> [ "wikiedit"; "wikiread" ]
-    | Ban _ -> [ "modcontributors" ]
-    | Modmail _ -> [ "modmail" ]
-    | Cleanup_thread | Lock | Remove -> [ "modposts" ]
-    | Nuke -> [ "modposts"; "read" ]
-    | Notify _ -> [ "modposts"; "submit" ]
-    | Set_flair _ -> [ "flair" ])
+     | Add_usernote _ | Watch_via_automod _ -> [ "wikiedit"; "wikiread" ]
+     | Ban _ -> [ "modcontributors" ]
+     | Modmail _ -> [ "modmail" ]
+     | Cleanup_thread | Lock | Remove -> [ "modposts" ]
+     | Nuke -> [ "modposts"; "read" ]
+     | Notify _ -> [ "modposts"; "submit" ]
+     | Set_flair _ -> [ "flair" ])
 ;;
