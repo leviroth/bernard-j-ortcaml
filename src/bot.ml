@@ -321,7 +321,7 @@ let serve_metrics port =
   let where_to_listen = Tcp.Where_to_listen.of_port port in
   Cohttp_async.Server.create
     where_to_listen
-    (fun ~body _address request -> Prometheus_app.Cohttp.callback request body)
+    (fun ~body _address request -> Cohttp_async_prometheus.callback request body)
     ~on_handler_error:
       (`Call
         (fun _addr exn ->
