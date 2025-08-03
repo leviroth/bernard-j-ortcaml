@@ -2,8 +2,9 @@
  (name bernard_j_ortcutt)
  (public_name bernard_j_ortcutt)
  (libraries async base64 caqti-async caqti-driver-postgresql cohttp-async
-   core ezgzip prometheus prometheus-app core_kernel.nonempty_list
-   reddit_api_async)
+   core ezgzip prometheus prometheus-app core_kernel.nonempty_list jsont
+   jsont.bytesrw bytesrw bytesrw.zlib reddit_api_async)
+ (inline_tests)
  (preprocess
   (pps ppx_jane ppx_jsonaf_conv)))
 

@@ -8,6 +8,8 @@ module Note : sig
       | Comment of Thing.Link.Id.t * Thing.Comment.Id.t
       | Custom_url of Uri_with_string_sexp.t
     [@@deriving sexp_of]
+
+    val to_string : t -> string
   end
 
   module Spec : sig

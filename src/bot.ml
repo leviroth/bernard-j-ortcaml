@@ -390,5 +390,6 @@ let command =
     [ "run", main_command
     ; "validate", validate_command
     ; "required-scopes", required_scopes_command
+    ; "notes", Add_usernote.command
     ]
 ;;
