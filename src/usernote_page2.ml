@@ -113,7 +113,7 @@ let jsonaf_of_t { moderators; warnings; notes } =
           [ "users", [%jsonaf_of: Moderators.t] moderators
           ; "warnings", [%jsonaf_of: Warnings.t] warnings
           ] )
-    ; "blob", `String (compress_blob notes)
+    ; "blob", `String notes
     ]
 ;;
 
@@ -121,23 +121,23 @@ let update_list note =
   Jsont.recode ~dec:Jsont.(list json) (fun l -> note :: l) ~enc:Jsont.(list json)
 ;;
 
-let add_note username note = Jsont.(update_mem ~absent:[] username (update_list note))
+let add_note username note =
+  Jsont.(update_mem ~absent:[ note ] username (update_list note))
+;;
 
 let add_note { moderators; warnings; notes } ~username ~spec =
   let username = Username.to_string username in
   let note = Note.create spec ~moderators ~warnings in
-  let notes = decompress_blob notes in
-  let notes =
-    Jsont_bytesrw.recode_string (add_note username note) notes |> Stdlib.Result.get_ok
+  let notes = Base64.decode_exn notes in
+  let notes_reader = Bytesrw.Bytes.Reader.of_string notes in
+  let decompressed = Bytesrw_zlib.Zlib.decompress_reads () notes_reader in
+  let buffer = Buffer.create (String.length notes) in
+  let writer =
+    Bytesrw_zlib.Zlib.compress_writes () (Bytesrw.Bytes.Writer.of_buffer buffer) ~eod:true
   in
-  (* let notes_reader =Bytesrw.Bytes.Reader.of_string notes in *)
-  (* let decompressed = Bytesrw_zlib.Gzip.decompress_reads () notes_reader in *)
-  (* let buffer = Buffer.create (String.length notes) in *)
-  (* let writer = Bytesrw_zlib.Gzip.compress_writes () (Bytesrw.Bytes.Writer.of_buffer buffer) ~eod:false in *)
+  Debug.am [%here];
+  Jsont_bytesrw.recode (add_note username note) decompressed writer ~eod:true
+  |> Stdlib.Result.get_ok;
+  let notes = Base64.encode_exn (Buffer.contents buffer) in
   { moderators; warnings; notes }
 ;;
-(* let%expect_test _ = *)
-(*   let s = {|["baz"]|} in *)
-(*   let updated = Jsont_bytesrw.recode_string update_list s in *)
-(*   printf "%s\n" (Stdlib.Result.get_ok updated); *)
-(*   [%expect {| ["foobar","baz"] |}] *)
