@@ -25,7 +25,7 @@ let retry_or_fail retry_manager here endpoint =
           "Reddit returned error"
             (here : Source_code_position.t)
             ~request:(endpoint.request : Endpoint.Request.t)
-            (error : Retry_manager.Permanent_error.t)])
+            (error : Endpoint.Error.t Connection.Error.t)])
 ;;
 
 let update_wiki_page ?reason page ~retry_manager ~f =
